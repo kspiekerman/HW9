@@ -1,0 +1,190 @@
+---
+title: "HW 9"
+author: "Kate Spiekerman, kls5665"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r global_options, echo=FALSE}
+knitr::opts_chunk$set(fig.height=4, fig.width=5, warning=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60))
+```
+
+The github link can be found [here](https://github.com/kspiekerman/HW9).
+
+## **Problem 1**
+
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(mosaic)
+library(ggplot2)
+library(MatchIt)
+```
+
+**Part A**
+
+**Bullet 1:**
+```{r, echo = FALSE, results = 'hide'}
+vote <- read.csv('turnout.csv')
+
+received_call <- vote%>%
+  filter(GOTV_call == 1)
+
+call_voted = prop(~voted1998, data = received_call)
+
+```
+
+64.8% of people who received a call voted in 1998. 
+
+
+**Bullet 2:**
+```{r, echo=FALSE, results='hide'}
+no_call_received = vote%>%
+  filter(GOTV_call == 0)
+
+no_call_voted = prop(~voted1998, data = no_call_received)
+
+boot_bullet2 = do(1000) * prop(~voted1998, data = mosaic::resample(no_call_received))
+mean(boot_bullet2$prop_1)
+
+```
+
+44.4% of those who did not receive a call voted in 1998.
+
+
+**Bullet 3:**
+```{r, echo = FALSE, results = 'hide', message=FALSE, fig.width = 6, fig.height = 4, fig.align = 'center'}
+b3 = do(1000) * diffprop(voted1998 == 1 ~ GOTV_call, data = mosaic::resample(vote))
+ggplot(b3) + geom_histogram(aes(x = diffprop))
+confint(b3, level = .95)
+
+```
+With a 95% confidence interval from .14 to .27, there is a 21% difference in people in 1998 who got a "get out the vote" call and people that didn't. 
+
+**Part B**
+
+Evidence of Age Confounder:
+```{r, echo = FALSE, results = 'hide', message=FALSE, fig.width = 6, fig.height = 4, fig.align = 'center'}
+ggplot(vote) + 
+  geom_histogram(aes(x = AGE, y = ..density.., binwidth = 2)) +
+  facet_wrap(~GOTV_call, nrow = 2) +
+  theme_classic()
+
+ggplot(vote) +
+  geom_histogram(aes(x = AGE, y = ..density.., binwidth = 2)) +
+  facet_wrap(~voted1998, nrow = 2) +
+  theme_classic()
+```
+
+Evidence of Major Party Confounder:
+```{r, echo = FALSE, results = 'hide', message=FALSE, fig.width = 6, fig.height = 4, fig.align = 'center'}
+ggplot(vote) + 
+  geom_bar(aes(x = MAJORPTY)) +
+  facet_wrap(~GOTV_call, nrow = 2) +
+  theme_classic()
+
+ggplot(vote) +
+  geom_bar(aes(x = MAJORPTY)) +
+  facet_wrap(~voted1998, nrow = 2) +
+  theme_classic()
+```
+
+**Part C**
+
+```{r, echo=FALSE}
+GOTV_matched = matchit(GOTV_call ~ AGE + voted1996 + MAJORPTY,
+                       data = turnout, ratio = 5)%>%
+  match.data
+```
+
+Balanced Evidence for Age:
+```{r, echo = FALSE}
+mean(AGE ~ GOTV_call, data = GOTV_matched)
+```
+
+Balanced Evidence for Voted in 1996:
+```{r, echo = FALSE}
+xtabs(~ voted1996 + GOTV_call, data = GOTV_matched) %>%
+  prop.table(margin = 2)
+```
+
+Balanced Evidence of Major Party:
+```{r, echo = FALSE}
+xtabs(~ MAJORPTY + GOTV_call, data = GOTV_matched) %>%
+  prop.table(margin = 2)
+```
+
+**Analysis of Data**
+```{r, echo=FALSE, results = 'hide'}
+filtered_matched = GOTV_matched%>%
+  filter(voted1998 == 1)
+
+prop(~GOTV_call == 1, data = filtered_matched)
+sampleprop = do(1000) * prop(~GOTV_call == 0, data = filtered_matched)
+mean(sampleprop$prop_TRUE)
+
+diffprops = do(1000) * diffprop(voted1998 == 1 ~ GOTV_call, data = mosaic::resample(GOTV_matched))
+confint(diffprops, level = .95)
+```
+
+18% of those who received a call voted in 1998.
+81.6% of those who did not receive a call voted in 1998.
+With a 95% confidence interval from .006 to .139, that there is a 5% difference in voting in 1998 based on receiving or not receiving a call. 
+
+## **Problem 2**
+
+```{r, echo = FALSE}
+solder <- read.csv('solder.csv')
+```
+
+**Part A**
+```{r, echo = FALSE, results = 'hide', message=FALSE, fig.width = 6, fig.height = 4, fig.align = 'center'}
+ggplot(solder) +
+  geom_boxplot(aes(x = factor(Opening), y = skips)) +
+  labs(title = 'Correlation Between Size and Skips', x = 'Size', y ='Number of Skips') +
+  theme_classic()
+```
+This box plot shows that on average, as the size of the opening on the solder decreases, the number of skips increases.
+
+```{r, echo = FALSE, results = 'hide', message=FALSE, fig.width = 6, fig.height = 4, fig.align = 'center'}
+ggplot(solder) +
+  geom_boxplot(aes(x = factor(Solder), y = skips)) +
+  labs(title = 'Correlation Between Thickness and Skips', x = 'Thickness', y = 'Number of Skips') +
+  theme_classic()
+```
+This box plot shows that on average, thinner alloys result in more skips. 
+
+**Part B**
+```{r, echo = FALSE}
+linear = lm(skips ~ (Opening) + (Solder) + Opening:Solder, data = solder)
+coef(linear) %>% round(2)
+confint(linear, level = .95)
+```
+
+This creates the equation:
+Y = .39 + 2.41(MediumOpening) + 5.13(SmallOpening) + 2.28(ThinSolder) - .74(MediumOpening:ThinSolder) + 9.65(SmallOpening:ThinSolder)
+
+**Part C**
+The baseline for thick and large opening is .39
+The main effect for medium opening is 2.41. 
+This is the effect of the medium opening in isolation.
+The main effect for small opening is 5.12. 
+This is the effect of the small opening in isolation.
+The main effect for thin solder is 2.28. 
+This is the effect of the thin solder in isolation.
+The interaction effect for medium opening and thin solder is -.74, meaning there is one less skip on the circuit board when the opening is medium and solder is thin.
+The interaction effect for small opening and thin solder is 10 meaning there is 9.65 more skips on the circuit board when the opening is small and the solder is thin. 
+
+**Part D**
+Thick with large opening is the best option as a result of it having the least amount of skips, based on the model created. All other combinations would add to the number of skips, which is not the goal.
+
+
+
+
+
+
+
+
+
+
